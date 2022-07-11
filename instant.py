@@ -5,7 +5,7 @@ expected_module = sys.argv[1]
 
 ##############
 start_str = """
-module testbench_%s(
+module tb_%s(
 
     );
 """%expected_module
