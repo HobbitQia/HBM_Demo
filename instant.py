@@ -5,6 +5,7 @@ expected_module = sys.argv[1]
 
 ##############
 start_str = """
+`timescale 1ns / 1ns
 module tb_%s(
 
     );
