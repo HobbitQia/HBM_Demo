@@ -25,6 +25,11 @@ lines = []
 sim = []
 cur_module_name=""
 
+g_in_modules = []
+g_in_sig_names = []
+g_in_sig_widths = []
+g_out_modules = []
+
 def is_start(line):
 	if line.startswith("module"):
 		return True
@@ -170,6 +175,13 @@ def process(lines):
 			print(*width_str, sep=', ')
 			print()
 
+			if io_type == "OUT":
+				g_out_modules.append(mod_name)
+			elif io_type == "IN":
+				g_in_modules.append(mod_name)
+				g_in_sig_names.append(names)
+				g_in_sig_widths.append(width_str)
+
 	print()
 
 
@@ -194,20 +206,30 @@ print("%s %s_inst("%(expected_module, expected_module))
 print("\t.*")
 print(");\n")
 
+print("/*")
+for i in range(len(g_in_modules)):
+	print(*g_in_sig_names[i],sep=',')
+	print(g_in_modules[i]+".write({",end='')
+	print(*g_in_sig_widths[i],sep=',',end='')
+	print("});\n")
+print("*/")
 # print initial begin
-initial_str = """
+initial_str0 = """
 initial begin
 	reset <= 1;
 	clock = 1;
 	#1000;
 	reset <= 0;
-	#100;
-	out_io_xxx.start();
-	#50;
-	in_io_yyy.init_from_file("/home/amax/yyy.txt");
-end
-always #5 clock=~clock;
+	#100;"""
 
+initial_str1 = """
+end
+
+always #5 clock=~clock;
 endmodule
 """
-print(initial_str)
+print(initial_str0)
+for name in g_out_modules:
+	print("\t"+name+".start();")
+print("\t#50;",end='')
+print(initial_str1)
