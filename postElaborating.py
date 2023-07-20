@@ -45,6 +45,7 @@ if not projectName in config:
 
 moniterDepth = config[projectName]["moniterDepth"] if "moniterDepth" in config[projectName] else 1024
 moniterDelay = config[projectName]["moniterDelay"] if "moniterDelay" in config[projectName] else 0
+chiselProjectName = config[projectName]["chiselProjectName"] if "chiselProjectName" in config[projectName] else projectName
 
 argv = sys.argv[3:]
 
@@ -71,11 +72,10 @@ def get_width(str):
 		return int(w)+1
 	else:
 		return 1
-
-def append_wrapper_to_sv(wrapper):
+def append_to_sv(content):
 	fileName = "Verilog/" + moduleName + ".sv"
 	f = open(fileName,'a')
-	f.write(wrapper)
+	f.write(content)
 	f.close()
 
 # you must first add below code to your testbench before any print, and make sure fd == h80000003
@@ -243,9 +243,7 @@ def generate_tcl(moniter):
 		for i in range(len(widths)):
 			tcl2 += "CONFIG.C_PROBE%d_WIDTH {%d} "%(i,widths[i])
 		tcl2+="CONFIG.C_DATA_DEPTH {%d} CONFIG.C_NUM_OF_PROBES {%d} ] [get_ips %s]"%(moniterDepth,len(widths),ip_name)
-		tcl3 = "generate_target {instantiation_template} [get_files %s/%s/%s.xci]"%(destIPRepoPath,ip_name,ip_name)
-		tcl4 = "update_compile_order -fileset sources_1\n\n"
-		tcl = tcl1+"\n"+tcl2+"\n"+tcl3+"\n"+tcl4
+		tcl = tcl1+"\n"+tcl2+"\n"
 	else:
 		ip_name = moniter.name+"_inner"
 		tcl1 = "create_ip -name vio -vendor xilinx.com -library ip -version 3.0 -module_name "+ip_name
@@ -254,9 +252,7 @@ def generate_tcl(moniter):
 		for i in range(len(widths)):
 			tcl2 += "CONFIG.C_PROBE_OUT%d_WIDTH {%d} "%(i,widths[i])
 		tcl2+="CONFIG.C_NUM_PROBE_OUT {%d} CONFIG.C_EN_PROBE_IN_ACTIVITY {0} CONFIG.C_NUM_PROBE_IN {0}] [get_ips %s]"%(len(widths),ip_name)
-		tcl3 = "generate_target {instantiation_template} [get_files %s/%s/%s.xci]"%(destIPRepoPath,ip_name,ip_name)
-		tcl4 = "update_compile_order -fileset sources_1\n\n"
-		tcl = tcl1+"\n"+tcl2+"\n"+tcl3+"\n"+tcl4
+		tcl = tcl1+"\n"+tcl2+"\n"
 	return tcl
 def post_run():
 	initial_moniters_from_txt()
@@ -266,11 +262,13 @@ def post_run():
 	wrapperStr = ""
 	for moniter in moniters:
 		wrapperStr+= generate_wrapper(moniter)
-	append_wrapper_to_sv(wrapperStr)
+	append_to_sv(wrapperStr)
 
 	for moniter in moniters:
 		tcl = generate_tcl(moniter)
 		if showTCL:
+			tcl_in_sv = "/*\n" + tcl + "*/\n"
+			append_to_sv(tcl_in_sv)
 			print(tcl)
 	
 	replace_print()
@@ -282,8 +280,8 @@ try:
 except:
 	print("No txt file to be deleted")
 
-print("Running mill " + projectName+" " + moduleName)
-p = subprocess.Popen(["mill", projectName, moduleName])
+print("Running mill " + chiselProjectName+" " + moduleName)
+p = subprocess.Popen(["mill", chiselProjectName, moduleName])
 p.wait()
 ret = p.returncode
 
