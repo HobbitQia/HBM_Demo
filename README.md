@@ -7,7 +7,7 @@
 	$ git clone https://github.com/RC4ML/chisel_template.git
 	$ cd chisel_template
 	$ git submodule add git@github.com:carlzhang4/common.git common
-	$ git submodule add git@github.com:carlzhang4/qdma.git qdma
+	$ git submodule add git@github.com:RC4ML/qdma.git qdma
 	```
 
 3. Generate your first module:
