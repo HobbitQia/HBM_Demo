@@ -45,7 +45,6 @@ if not projectName in config:
 
 moniterDepth = config[projectName]["moniterDepth"] if "moniterDepth" in config[projectName] else 1024
 moniterDelay = config[projectName]["moniterDelay"] if "moniterDelay" in config[projectName] else 0
-chiselProjectName = config[projectName]["chiselProjectName"] if "chiselProjectName" in config[projectName] else projectName
 
 argv = sys.argv[3:]
 
@@ -72,15 +71,13 @@ def get_width(str):
 		return int(w)+1
 	else:
 		return 1
-def append_to_sv(content):
+
+def append_wrapper_to_sv(wrapper):
 	fileName = "Verilog/" + moduleName + ".sv"
 	f = open(fileName,'a')
-	f.write(content)
+	f.write(wrapper)
 	f.close()
 
-# you must first add below code to your testbench before any print, and make sure fd == h80000003
-# fd = $fopen("~/output", "w");
-# $display("fd = %x\n",fd);
 def replace_print():
 	fileName = "Verilog/" + moduleName + ".sv"
 	f = open(fileName,'r')
@@ -137,6 +134,10 @@ def parse_verilog():
 			matchObj = re.match(rf"\s+{moniter.name} (\S+) \( // @\[.+\]", line)
 			if matchObj != None:
 				moniter.instName = matchObj.group(1)
+	for moniter in moniters:
+		if moniter.instName == None:
+			# Dropping duplicate instants
+			moniters.remove(moniter)
 	instNames = [moniter.instName for moniter in moniters]
 	for instName in instNames:
 		if instNames.count(instName) != 1:
@@ -199,6 +200,9 @@ def generate_wrapper(moniter):
 			target_names.append(target_name)
 	io = "input" if moniter.type=="ila"  else "output"
 	probe_cnt = len(signal_names)
+	# For some optimized moniters, simply ignore them.
+	if probe_cnt == 0:
+		return ""
 	for i in range(probe_cnt):
 		name = signal_names[i]
 		width = signal_widths[i]
@@ -243,7 +247,8 @@ def generate_tcl(moniter):
 		for i in range(len(widths)):
 			tcl2 += "CONFIG.C_PROBE%d_WIDTH {%d} "%(i,widths[i])
 		tcl2+="CONFIG.C_DATA_DEPTH {%d} CONFIG.C_NUM_OF_PROBES {%d} ] [get_ips %s]"%(moniterDepth,len(widths),ip_name)
-		tcl = tcl1+"\n"+tcl2+"\n"
+		tcl3 = "update_compile_order -fileset sources_1\n\n"
+		tcl = tcl1+"\n"+tcl2+"\n"+tcl3
 	else:
 		ip_name = moniter.name+"_inner"
 		tcl1 = "create_ip -name vio -vendor xilinx.com -library ip -version 3.0 -module_name "+ip_name
@@ -252,7 +257,8 @@ def generate_tcl(moniter):
 		for i in range(len(widths)):
 			tcl2 += "CONFIG.C_PROBE_OUT%d_WIDTH {%d} "%(i,widths[i])
 		tcl2+="CONFIG.C_NUM_PROBE_OUT {%d} CONFIG.C_EN_PROBE_IN_ACTIVITY {0} CONFIG.C_NUM_PROBE_IN {0}] [get_ips %s]"%(len(widths),ip_name)
-		tcl = tcl1+"\n"+tcl2+"\n"
+		tcl3 = "update_compile_order -fileset sources_1\n\n"
+		tcl = tcl1+"\n"+tcl2+"\n"+tcl3
 	return tcl
 def post_run():
 	initial_moniters_from_txt()
@@ -262,13 +268,11 @@ def post_run():
 	wrapperStr = ""
 	for moniter in moniters:
 		wrapperStr+= generate_wrapper(moniter)
-	append_to_sv(wrapperStr)
+	append_wrapper_to_sv(wrapperStr)
 
 	for moniter in moniters:
 		tcl = generate_tcl(moniter)
 		if showTCL:
-			tcl_in_sv = "/*\n" + tcl + "*/\n"
-			append_to_sv(tcl_in_sv)
 			print(tcl)
 	
 	replace_print()
@@ -280,8 +284,8 @@ try:
 except:
 	print("No txt file to be deleted")
 
-print("Running mill " + chiselProjectName+" " + moduleName)
-p = subprocess.Popen(["mill", chiselProjectName, moduleName])
+print("Running mill " + projectName+" " + moduleName)
+p = subprocess.Popen(["mill", projectName, moduleName])
 p.wait()
 ret = p.returncode
 

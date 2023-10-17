@@ -1,0 +1,29 @@
+//Report width 32:
+printf("\n=========================qdma=========================\n");
+fmt::println("tlb.io.tlb_miss_count                                       : {}", fpga_ctl->readReg(512+400));
+printf("\n");
+fmt::println("io.c2h_cmd.[fire]                                           : {}", fpga_ctl->readReg(512+401));
+fmt::println("io.h2c_cmd.[fire]                                           : {}", fpga_ctl->readReg(512+402));
+fmt::println("io.c2h_data.[fire]                                          : {}", fpga_ctl->readReg(512+403));
+fmt::println("io.h2c_data.[fire]                                          : {}", fpga_ctl->readReg(512+404));
+printf("\n");
+fmt::println("fifo_c2h_cmd.io.out.[fire]                                  : {}", fpga_ctl->readReg(512+405));
+printf("\n");
+fmt::println("fifo_h2c_cmd.io.out.[fire]                                  : {}", fpga_ctl->readReg(512+406));
+printf("\n");
+fmt::println("fifo_c2h_data.io.out.[fire]                                 : {}", fpga_ctl->readReg(512+407));
+printf("\n");
+fmt::println("fifo_h2c_data.io.in.[fire]                                  : {}", fpga_ctl->readReg(512+408));
+//Report width 1:
+printf("\n=========================qdma=========================\n");
+fmt::println("fifo_c2h_cmd.io.out.valid                                   : {}", (fpga_ctl->readReg(512+409) >> 0) & 1);
+fmt::println("fifo_c2h_cmd.io.out.ready                                   : {}", (fpga_ctl->readReg(512+409) >> 1) & 1);
+printf("\n");
+fmt::println("fifo_h2c_cmd.io.out.valid                                   : {}", (fpga_ctl->readReg(512+409) >> 2) & 1);
+fmt::println("fifo_h2c_cmd.io.out.ready                                   : {}", (fpga_ctl->readReg(512+409) >> 3) & 1);
+printf("\n");
+fmt::println("fifo_c2h_data.io.out.valid                                  : {}", (fpga_ctl->readReg(512+409) >> 4) & 1);
+fmt::println("fifo_c2h_data.io.out.ready                                  : {}", (fpga_ctl->readReg(512+409) >> 5) & 1);
+printf("\n");
+fmt::println("fifo_h2c_data.io.in.valid                                   : {}", (fpga_ctl->readReg(512+409) >> 6) & 1);
+fmt::println("fifo_h2c_data.io.in.ready                                   : {}", (fpga_ctl->readReg(512+409) >> 7) & 1);
