@@ -24,7 +24,7 @@ class Foo extends MultiIOModule{
     val io = IO(Flipped(new AlveoStaticIO(
         VIVADO_VERSION = "202101", 
 		QDMA_PCIE_WIDTH = 16, 
-		QDMA_SLAVE_BRIDGE = true, 
+		QDMA_SLAVE_BRIDGE = false, 
 		QDMA_AXI_BRIDGE = true,
 		ENABLE_CMAC_1 = true
     )))
@@ -62,12 +62,10 @@ class Foo extends MultiIOModule{
 	val qdma = Module(new QDMADynamic(
 		VIVADO_VERSION		= "202101",
 		PCIE_WIDTH			= 16,
-		SLAVE_BRIDGE		= true,
+		SLAVE_BRIDGE		= false,
 		BRIDGE_BAR_SCALE	= "Megabytes",
 		BRIDGE_BAR_SIZE 	= 4
 	))
-	
-	qdma.io.s_axib.get  <> DontCare
 
 	ToZero(qdma.io.reg_status)
 
@@ -84,16 +82,7 @@ class Foo extends MultiIOModule{
 	qdma.io.c2h_cmd.valid	:= 0.U
 	qdma.io.c2h_cmd.bits	:= 0.U.asTypeOf(new C2H_CMD)
 	
-	val axi_slave = withClockAndReset(userClk, ~userRstn.asBool) {Module(new SimpleAXISlave(new AXIB))}
-	axi_slave.io.axi	<> qdma.io.axib
-
-	val r_data = axi_slave.io.axi.r.bits.data(31,0)
-
-    val count_w_fire = withClockAndReset(userClk, ~userRstn.asBool) {RegInit(0.U(32.W))}
-    when(qdma.io.axib.w.fire()){
-        count_w_fire	:= count_w_fire+1.U
-    }
-    qdma.io.reg_status(0)	:= count_w_fire
+	qdma.io.axib := DontCare
 
 	val reg_control = qdma.io.reg_control
 	val reg_status = qdma.io.reg_status
@@ -108,30 +97,40 @@ class Foo extends MultiIOModule{
 
 	val c2h = withClockAndReset(userClk, !qdma.io.user_arstn){ Module(new C2HWithAXI()) }
 	c2h.io.c2h_cmd		<> qdma_c2h_cmd
-	c2h.io.c2h_data		<> DontCare
+	c2h.io.c2h_data		<> qdma_c2h_data
 
 	// 还需要一个 FIFO
-	val fifo_h2c_cmd		= XConverter(new AXI_ADDR(33, 256, 6, 0, 4), userClk, qdma.io.user_arstn, hbm_clk)
-	fifo_h2c_cmd.io.in <> withClockAndReset(userClk, !qdma.io.user_arstn) { RegSlice(h2c.io.h2c_aw) }
-	val hbm_h2c_cmd = withClockAndReset(hbm_clk, !hbm_rstn) { RegSlice(fifo_h2c_cmd.io.out) } 
-	// 这里应该是 in
+	val in_axi = Wire(Flipped(new AXI(33, 256, 6, 0, 4)))
+	ToZero(in_axi)
+	val in_axi_regslice = withClockAndReset(userClk, !qdma.io.user_arstn) { AXIRegSlice(in_axi) }
+	in_axi.aw <> h2c.io.h2c_aw
+	in_axi.w <> h2c.io.h2c_w
+	in_axi.ar <> c2h.io.c2h_ar
+	c2h.io.c2h_r <> in_axi.r
+	h2c.io.h2c_b <> in_axi.b
 
-	val fifo_h2c_data		= XConverter(new AXI_DATA_W(33, 256, 6, 0), userClk, qdma.io.user_arstn, hbm_clk)
-	// ToZero(fifo_h2c_data.io.in.bits)
-	fifo_h2c_data.io.in <> withClockAndReset (userClk, !qdma.io.user_arstn) { RegSlice(h2c.io.h2c_w) }
-	val hbm_h2c_data = withClockAndReset(hbm_clk, !hbm_rstn) { RegSlice(fifo_h2c_data.io.out) }
+	val out_axi = XAXIConverter(in_axi_regslice, userClk, qdma.io.user_arstn, hbm_clk, hbm_rstn)
+	val out_axi_regslice = withClockAndReset(hbm_clk, !hbm_rstn) { AXIRegSlice(out_axi) }
 
-	val fifo_c2h_cmd		= XConverter(new AXI_ADDR(33, 256, 6, 0, 4), userClk, qdma.io.user_arstn, hbm_clk)
-	fifo_c2h_cmd.io.in <> withClockAndReset(userClk, !qdma.io.user_arstn) { RegSlice(c2h.io.c2h_ar) }
-	val hbm_c2h_cmd =  withClockAndReset(hbm_clk, !hbm_rstn) { RegSlice(fifo_c2h_cmd.io.out) }
+	val hbm_h2c_cmd = out_axi_regslice.aw
 
-	// 能不能用 AXIRegSlice
-	val fifo_c2h_data		= XConverter(new AXI_DATA_R(33, 256, 6, 0), hbm_clk, hbm_rstn, userClk)
+	val hbm_h2c_data = out_axi_regslice.w
+
+	val hbm_c2h_cmd = out_axi_regslice.ar
+
 	val hbm_c2h_data = Wire(Decoupled(new AXI_DATA_R(33, 256, 6, 0)))
 	ToZero(hbm_c2h_data)
-	fifo_c2h_data.io.in <> withClockAndReset(hbm_clk, !hbm_rstn) { RegSlice(hbm_c2h_data) }
-	c2h.io.c2h_r <> withClockAndReset (userClk, !qdma.io.user_arstn) { RegSlice(fifo_c2h_data.io.out) }
+	val hbm_h2c_back = Wire(Decoupled(new AXI_BACK(33, 256, 6, 0)))
 
+	// out_axi_regslice.r <> hbm_c2h_data
+	out_axi_regslice.r.bits := hbm_c2h_data.bits
+	out_axi_regslice.r.valid := hbm_c2h_data.valid
+	hbm_c2h_data.ready := out_axi_regslice.r.ready
+
+	out_axi_regslice.b.bits := hbm_h2c_back.bits
+	out_axi_regslice.b.valid := hbm_h2c_back.valid
+	hbm_h2c_back.ready := out_axi_regslice.b.ready
+	
 	// H2C 往 hbm 里写数据（应该是 aw 和 w
 	val axi_port_0 = hbm_driver.io.axi_hbm(0)
 	hbm_h2c_cmd.ready := axi_port_0.aw.ready
@@ -145,7 +144,10 @@ class Foo extends MultiIOModule{
 	axi_port_0.w.bits.data := hbm_h2c_data.bits.data
 	axi_port_0.w.bits.last := hbm_h2c_data.bits.last
 	// hbm_h2c_data.bits <> axi_port_0.w.bits		// data last
-
+	//back
+	axi_port_0.b.ready := hbm_h2c_back.ready
+	hbm_h2c_back.valid := axi_port_0.b.valid
+	hbm_h2c_back.bits <> axi_port_0.b.bits
 
 	// C2H 从 hbm 里读数据（应该是 ar
 	hbm_c2h_cmd.ready := axi_port_0.ar.ready
@@ -201,15 +203,14 @@ class Foo extends MultiIOModule{
 	Collector.connect_to_status_reg(reg_status, 400)
 
 	val inst = Module(new ila_name(Seq(	
-    clock,				// qdma input
+    // clock,				// qdma input
 	io.sysClk,			// hbm input
 	userClk,			// qdma input(equal to clock)
 	hbm_clk,			// hbm output
 
-	reset,
-	userRstn,
-	hbm_rstn,
 	qdma.io.user_arstn,
+	h2c.reset,
+
 	qdma_h2c_cmd.bits.addr,
 	qdma_h2c_cmd.bits.len,
 	qdma_h2c_data.bits.data,
@@ -219,6 +220,64 @@ class Foo extends MultiIOModule{
 	qdma_c2h_cmd.bits.len,
 	qdma_c2h_data.bits.data,
 	qdma_c2h_data.bits.last,
+
+	h2c.io.h2c_cmd.valid,
+	h2c.io.h2c_cmd.ready,
+	c2h.io.c2h_cmd.valid,
+	c2h.io.c2h_cmd.ready,
+
+	h2c.io.h2c_aw.bits.addr,
+	c2h.io.c2h_ar.bits.addr,
+	h2c.io.h2c_w.bits.data,
+	c2h.io.c2h_r.bits.data,
+
+	axi_port_0.ar.bits.addr,
+	axi_port_0.r.bits.data,
+	axi_port_0.aw.bits.addr,
+	axi_port_0.w.bits.data,
+	axi_port_0.b.bits.resp,
+	axi_port_0.b.bits.id,
+
+	axi_port_0.ar.valid,
+	axi_port_0.r.valid,
+	axi_port_0.aw.valid,
+	axi_port_0.w.valid,
+	axi_port_0.b.valid,
+
+	axi_port_0.ar.ready,
+	axi_port_0.r.ready,
+	axi_port_0.aw.ready,
+	axi_port_0.w.ready,
+	axi_port_0.b.ready,
+
+	hbm_h2c_cmd.bits.addr,
+	hbm_c2h_cmd.bits.addr,
+	hbm_h2c_data.bits.data,
+	hbm_c2h_data.bits.data,
+
+	in_axi.ar.bits.addr,
+	in_axi.r.bits.data,
+	in_axi.aw.bits.addr,
+	in_axi.w.bits.data,
+	in_axi.b.bits.resp,
+
+	in_axi_regslice.ar.bits.addr,
+	in_axi_regslice.r.bits.data,
+	in_axi_regslice.aw.bits.addr,
+	in_axi_regslice.w.bits.data,
+	in_axi_regslice.b.bits.resp,
+
+	out_axi.ar.bits.addr,
+	out_axi.r.bits.data,
+	out_axi.aw.bits.addr,
+	out_axi.w.bits.data,
+	out_axi.b.bits.resp,
+
+	// out_axi_regslice.ar.bits.addr,
+	// out_axi_regslice.r.bits.data,
+	// out_axi_regslice.aw.bits.addr,
+	// out_axi_regslice.w.bits.data,
+	out_axi_regslice.b.bits.resp
 	)))
 	inst.connect(clock)
 }

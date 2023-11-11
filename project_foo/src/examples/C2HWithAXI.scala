@@ -62,12 +62,15 @@ class C2HWithAXI() extends Module{
 
     // HBM
     io.c2h_ar.bits.hbm_init()
-    io.c2h_ar.bits.addr := Cat(io.target_hbm, io.target_addr)
+	val now_addr = RegInit(UInt(33.W), Cat(io.target_hbm, io.target_addr))
+    io.c2h_ar.bits.addr := now_addr
     io.c2h_ar.bits.len  := io.length / 32.U   // length 最多 16
     io.c2h_ar.valid     := true.B
     when (io.c2h_r.fire()) {
-        io.c2h_ar.valid     := false.B
-    }
+		now_addr := now_addr + 32.U
+    }.otherwise {
+		now_addr := now_addr
+	}
 	
     io.c2h_r.ready      := true.B
 
@@ -75,8 +78,12 @@ class C2HWithAXI() extends Module{
 	val data_bits		= io.c2h_data.bits
 	io.c2h_data.valid 	:= valid_data
 	data_bits			:= 0.U.asTypeOf(new C2H_DATA)
-    data_bits.data      := io.c2h_r.bits.data
 	data_bits.ctrl_qid	:= cur_data_q
+
+	when(io.c2h_r.fire()) {
+		data_bits.data := io.c2h_r.bits.data
+		data_bits.last := io.c2h_r.bits.last
+	}
 
 	when(io.tag_index === (RegNext(io.tag_index)+1.U)){
 		tags(RegNext(io.tag_index))	:= io.pfch_tag

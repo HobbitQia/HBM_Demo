@@ -34,6 +34,7 @@ class H2CWithAXI() extends Module{
 		val h2c_data	= Flipped(Decoupled(new H2C_DATA))    
         val h2c_aw      = Decoupled(new AXI_ADDR(33, 256, 6, 0, 4))
         val h2c_w       = Decoupled(new AXI_DATA_W(33, 256, 6, 0))
+		val h2c_b 		= Flipped(Decoupled(new AXI_BACK(33, 256, 6, 0)))
 	})
 
 	val MAX_Q = 32
@@ -82,12 +83,15 @@ class H2CWithAXI() extends Module{
 
 	// HBM
     io.h2c_aw.bits.hbm_init()
-    io.h2c_aw.bits.addr := Cat(io.target_hbm, io.target_addr)
+	val now_addr = RegInit(UInt(33.W), Cat(io.target_hbm, io.target_addr))
+    io.h2c_aw.bits.addr := now_addr
     io.h2c_aw.bits.len  := io.length / 32.U   // length 最多 16
 	io.h2c_aw.valid := true.B
 	when (io.h2c_w.fire()) {
-        io.h2c_aw.valid     := false.B
-    }
+		now_addr := now_addr + 32.U
+    }.otherwise {
+		now_addr := now_addr
+	}
 
 	//state machine
 	val sIDLE :: sSEND_CMD :: sDONE :: Nil = Enum(3)//must lower case for first letter!!!
@@ -184,18 +188,25 @@ class H2CWithAXI() extends Module{
 		}.otherwise{
 			q_values(data_bits.tuser_qid)		:= q_values(data_bits.tuser_qid) + 1.U
 		}
-		when(io.is_seq === 1.U){
-			when(Cat(Seq.fill(16)(q_value_seq)).asUInt =/= data_bits.data){
-				count_err		:= count_err + 1.U
-			}
-		}.otherwise{
-			when(Cat(Seq.fill(16)(q_values(data_bits.tuser_qid))).asUInt =/= data_bits.data){
-				count_err		:= count_err + 1.U
-			}
-		}
+		// when(io.is_seq === 1.U){
+		// 	when(Cat(Seq.fill(16)(q_value_seq)).asUInt =/= data_bits.data){
+		// 		count_err		:= count_err + 1.U
+		// 	}
+		// }.otherwise{
+		// 	when(Cat(Seq.fill(16)(q_values(data_bits.tuser_qid))).asUInt =/= data_bits.data){
+		// 		count_err		:= count_err + 1.U
+		// 	}
+		// }
+	}
+
+
+	
+	io.h2c_b.ready := true.B
+	when(io.h2c_b.fire()){
+		count_err := count_err + 1.U
 	}
 
 	io.count_err		:= count_err
-	io.count_word		:= count_word.asUInt
+	io.count_word		:= send_cmd_count
 	io.count_time		:= count_time
 }
