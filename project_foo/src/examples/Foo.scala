@@ -100,7 +100,7 @@ class Foo extends MultiIOModule{
 	c2h.io.c2h_data		<> qdma_c2h_data
 
 	// 还需要一个 FIFO
-	val in_axi = Wire(Flipped(new AXI(33, 256, 6, 0, 4)))
+	val in_axi = Wire(new AXI(33, 256, 6, 0, 4))
 	ToZero(in_axi)
 	val in_axi_regslice = withClockAndReset(userClk, !qdma.io.user_arstn) { AXIRegSlice(in_axi) }
 	in_axi.aw <> h2c.io.h2c_aw
@@ -204,20 +204,25 @@ class Foo extends MultiIOModule{
 
 	val inst = Module(new ila_name(Seq(	
     // clock,				// qdma input
-	io.sysClk,			// hbm input
-	userClk,			// qdma input(equal to clock)
+	// io.sysClk,			// hbm input
+	// userClk,			// qdma input(equal to clock)
 	hbm_clk,			// hbm output
 
 	qdma.io.user_arstn,
-	h2c.reset,
+	// h2c.reset,
+
+	h2c.io.count_err,
+	// h2c.io.count_word,
+	c2h.io.count_cmd,
+	c2h.io.count_word,
 
 	qdma_h2c_cmd.bits.addr,
-	qdma_h2c_cmd.bits.len,
+	// qdma_h2c_cmd.bits.len,
 	qdma_h2c_data.bits.data,
 	qdma_h2c_data.bits.last,
 
 	qdma_c2h_cmd.bits.addr,
-	qdma_c2h_cmd.bits.len,
+	// qdma_c2h_cmd.bits.len,
 	qdma_c2h_data.bits.data,
 	qdma_c2h_data.bits.last,
 
@@ -225,6 +230,16 @@ class Foo extends MultiIOModule{
 	h2c.io.h2c_cmd.ready,
 	c2h.io.c2h_cmd.valid,
 	c2h.io.c2h_cmd.ready,
+	h2c.io.h2c_aw.valid,
+	h2c.io.h2c_w.valid,
+	h2c.io.h2c_b.valid,
+	h2c.io.h2c_aw.ready,
+	h2c.io.h2c_w.ready,
+	h2c.io.h2c_b.ready,
+	c2h.io.c2h_ar.valid,
+	c2h.io.c2h_r.valid,
+	c2h.io.c2h_ar.ready,
+	c2h.io.c2h_r.ready,
 
 	h2c.io.h2c_aw.bits.addr,
 	c2h.io.c2h_ar.bits.addr,
@@ -277,7 +292,7 @@ class Foo extends MultiIOModule{
 	// out_axi_regslice.r.bits.data,
 	// out_axi_regslice.aw.bits.addr,
 	// out_axi_regslice.w.bits.data,
-	out_axi_regslice.b.bits.resp
+	// out_axi_regslice.b.bits.resp
 	)))
 	inst.connect(clock)
 }

@@ -37,7 +37,9 @@ object elaborate extends App {
 	args(0) match{
 		// case "QDMATop" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new QDMATop()),dir))
 		case "Foo" => stage.execute(arr, Seq(ChiselGeneratorAnnotation(() => new Foo()), dir, OutputFileAnnotation(args(0)), OutputAnnotationFileAnnotation(args(0)), ChiselOutputFileAnnotation(args(0))))
-		// case "Foo" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new Foo()),dir))
+		case "H2CWithAXI" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new H2CWithAXI()),dir))
+		case "C2HWithAXI" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new C2HWithAXI()),dir))
+		case "TestAXIRegSlice" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new TestAXIRegSlice()),dir))
 		case _ => println("Module match failed!")
 	}
 }

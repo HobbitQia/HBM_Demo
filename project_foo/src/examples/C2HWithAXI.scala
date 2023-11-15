@@ -39,7 +39,7 @@ class C2HWithAXI() extends Module{
 	val q_addr_seq			= RegInit(UInt(64.W),0.U)
 	val tags				= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(7.W))))
 	
-	val burst_words			= io.length(31,6)
+	val burst_words			= 1.U
 	val cur_q				= RegInit(UInt(log2Up(MAX_Q).W),0.U)
 	val cur_data_q			= RegInit(UInt(log2Up(MAX_Q).W),0.U)
 	val valid_cmd			= RegInit(UInt(32.W),0.U)
@@ -60,30 +60,11 @@ class C2HWithAXI() extends Module{
 	cmd_bits.pfch_tag	:= tags(cur_q)
 	cmd_bits.len		:= io.length
 
-    // HBM
-    io.c2h_ar.bits.hbm_init()
-	val now_addr = RegInit(UInt(33.W), Cat(io.target_hbm, io.target_addr))
-    io.c2h_ar.bits.addr := now_addr
-    io.c2h_ar.bits.len  := io.length / 32.U   // length 最多 16
-    io.c2h_ar.valid     := true.B
-    when (io.c2h_r.fire()) {
-		now_addr := now_addr + 32.U
-    }.otherwise {
-		now_addr := now_addr
-	}
-	
-    io.c2h_r.ready      := true.B
-
 	//port data
 	val data_bits		= io.c2h_data.bits
 	io.c2h_data.valid 	:= valid_data
 	data_bits			:= 0.U.asTypeOf(new C2H_DATA)
 	data_bits.ctrl_qid	:= cur_data_q
-
-	when(io.c2h_r.fire()) {
-		data_bits.data := io.c2h_r.bits.data
-		data_bits.last := io.c2h_r.bits.last
-	}
 
 	when(io.tag_index === (RegNext(io.tag_index)+1.U)){
 		tags(RegNext(io.tag_index))	:= io.pfch_tag
@@ -132,26 +113,6 @@ class C2HWithAXI() extends Module{
 		}
 	}
 
-	switch(state_data){
-		is(sIDLE){
-			when(io.start === 1.U && io.c2h_r.fire()){
-				state_data		:= sSEND
-			}
-		}
-		is(sSEND){
-			valid_data			:= true.B 
-			when(data_nearly_done){
-				state_data		:= sDONE
-				valid_data		:= false.B
-			}
-		}
-		is(sDONE){
-			when(rising_start){
-				state_data		:= sIDLE
-			}
-		}
-	}
-
 	when(io.c2h_cmd.fire()){
 		count_send_cmd		:= count_send_cmd + 1.U
 		q_addr_seq			:= q_addr_seq + io.length
@@ -178,6 +139,71 @@ class C2HWithAXI() extends Module{
 			count_burst_word	:= count_burst_word + 1.U
 		}
 	}
+
+	val sNone :: sAR :: sR :: sC2HDone :: Nil = Enum(4)//must lower case for first letter!!!
+	val AXI_state			= RegInit(sNone)
+	val send_c2h_count = RegInit(UInt(32.W), 0.U)
+	val tot_c2h_count  = RegInit(UInt(32.W), 0.U)
+	val now_addr = RegInit(UInt(33.W), 0.U)
+	val c2h_ar_valid	= RegInit(Bool(),false.B)
+	val c2h_r_ready		= RegInit(Bool(),false.B)
+	val c2h_r_data 		= RegInit(UInt(256.W), 0.U)
+	val c2h_r_last 		= RegInit(Bool(), false.B)
+	// data_bits.data := c2h_r_data
+	// data_bits.last := c2h_r_last
+	// io.c2h_r.bits.hbm_init()
+	io.c2h_ar.bits.hbm_init()
+	io.c2h_ar.valid := c2h_ar_valid
+	io.c2h_r.ready := c2h_r_ready
+	io.c2h_ar.bits.addr := now_addr
+	switch(AXI_state){
+		is(sNone){
+			tot_c2h_count := 0.U
+			now_addr := Cat(io.target_hbm, io.target_addr)
+			io.c2h_ar.bits.len  := io.length / 32.U
+
+			when(io.start===1.U){
+				AXI_state		:= sAR
+			}
+		}
+		is(sAR){
+			send_c2h_count := 0.U
+			c2h_ar_valid := true.B
+			valid_data := false.B
+			when(tot_c2h_count === io.total_words) {
+				c2h_ar_valid := false.B
+				AXI_state		:= sC2HDone
+			}.elsewhen(io.c2h_ar.fire()) {
+				AXI_state		:= sR
+				c2h_ar_valid := false.B
+				c2h_r_ready := true.B
+			}
+		}
+		is(sR){
+			when(io.c2h_r.fire()) {
+				c2h_r_data := Cat(0.U(256.W), io.c2h_r.bits.data)
+				c2h_r_last := io.c2h_r.bits.last
+				valid_data := true.B
+				c2h_r_ready := false.B
+			}
+			when(io.c2h_data.fire()) {
+				send_c2h_count := send_c2h_count + 1.U
+				when(send_c2h_count + 1.U === io.length / 32.U) {		// 一个地址对应 32 个字节
+					AXI_state		:= sAR
+					tot_c2h_count := tot_c2h_count + 1.U
+					valid_data := false.B
+					now_addr := now_addr + 32.U
+				}
+			}
+		}
+		is(sC2HDone) {
+			when(rising_start){
+				AXI_state		:= sNone
+			}
+		}
+	}
+	data_bits.data := c2h_r_data
+	data_bits.last := c2h_r_last
 
 	io.count_cmd			:= count_send_cmd
 	io.count_word			:= count_send_word
