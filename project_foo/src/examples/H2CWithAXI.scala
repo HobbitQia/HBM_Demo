@@ -32,20 +32,23 @@ class H2CWithAXI() extends Module{
 
 		val h2c_cmd		= Decoupled(new H2C_CMD)
 		val h2c_data	= Flipped(Decoupled(new H2C_DATA))    
-        val h2c_aw      = Decoupled(new AXI_ADDR(33, 256, 6, 0, 4))
-        val h2c_w       = Decoupled(new AXI_DATA_W(33, 256, 6, 0))
-		val h2c_b 		= Flipped(Decoupled(new AXI_BACK(33, 256, 6, 0)))
+        val h2c_aw_1      = Decoupled(new AXI_ADDR(33, 256, 6, 0, 4))
+        val h2c_w_1       = Decoupled(new AXI_DATA_W(33, 256, 6, 0))
+		val h2c_b_1 		= Flipped(Decoupled(new AXI_BACK(33, 256, 6, 0)))
+
+		val h2c_aw_2      = Decoupled(new AXI_ADDR(33, 256, 6, 0, 4))
+        val h2c_w_2       = Decoupled(new AXI_DATA_W(33, 256, 6, 0))
+		val h2c_b_2 		= Flipped(Decoupled(new AXI_BACK(33, 256, 6, 0)))
 	})
 
 	val MAX_Q = 32
 	// 对于地址和数据，各有一个队列
 	val q_addr_seq		= RegInit(UInt(64.W),0.U)
 	// q_values 用来检查 QDMA 传过来的值对不对
-	val q_value_seq		= RegInit(UInt(32.W),0.U)
-	val count_word		= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(32.W))))
-	val q_values		= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(32.W))))
-	val q_value_max		= VecInit(Seq.fill(MAX_Q)(0.U(32.W)))
-	val q_value_start	= VecInit(Seq.fill(MAX_Q)(0.U(32.W)))
+	// val q_value_seq		= RegInit(UInt(32.W),0.U)
+	// val q_values		= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(32.W))))
+	// val q_value_max		= VecInit(Seq.fill(MAX_Q)(0.U(32.W)))
+	// val q_value_start	= VecInit(Seq.fill(MAX_Q)(0.U(32.W)))
 	// 每个 addr 队列，对应的起始地址和结束地址（地址范围），以及当前在操作的地址
 	val q_addrs			= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(64.W))))
 	val q_addr_start	= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(64.W))))
@@ -56,7 +59,8 @@ class H2CWithAXI() extends Module{
 
 	val send_cmd_count	= RegInit(UInt(32.W),0.U)
 	val count_time		= RegInit(UInt(32.W),0.U)
-	val cur_word		= RegInit(UInt(32.W),0.U)
+	val cur_word_1		= Wire(UInt(32.W))
+	val cur_word_2		= Wire(UInt(32.W))
 
 
 	val rising_start	= io.start===1.U & !RegNext(io.start===1.U)
@@ -78,9 +82,9 @@ class H2CWithAXI() extends Module{
 	
 
 	//data
-	val data_bits		= io.h2c_data.bits
-	val h2c_data_ready = RegInit(Bool(),false.B)
-	io.h2c_data.ready	:= h2c_data_ready
+	val h2c_data_ready_1 = Wire(Bool())
+	val h2c_data_ready_2 = Wire(Bool())
+	io.h2c_data.ready	:= h2c_data_ready_1 & h2c_data_ready_2
 
 	//state machine
 	val sIDLE :: sSEND_CMD :: sDONE :: Nil = Enum(3)//must lower case for first letter!!!
@@ -93,32 +97,29 @@ class H2CWithAXI() extends Module{
 	// 	q_value_start(i)		:= io.offset + i.U
 	// }
 
-	// when(io.start === 1.U){
-	// 	when(cur_word =/= io.total_words){
-	// 		count_time	:= count_time + 1.U
-	// 	}.otherwise{
-	// 		count_time	:= count_time
-	// 	}
+	when(io.start === 1.U){
+		when(cur_word_1 =/= io.total_words || cur_word_2 =/= io.total_words){
+			count_time	:= count_time + 1.U
+		}.otherwise{
+			count_time	:= count_time
+		}
 		
-	// }.otherwise{
-	// 	count_time	:= 0.U
-	// }
+	}.otherwise{
+		count_time	:= 0.U
+	}
 
 	switch(state_cmd){
 		is(sIDLE){
 			send_cmd_count		:= 0.U
 			valid_cmd			:= false.B
 			cur_q				:= 0.U
-			count_err			:= 0.U
-			cur_word			:= 0.U
 			q_addr_seq			:= io.start_addr
-			q_value_seq			:= io.offset
+			// q_value_seq			:= io.offset
 			for(i <- 0 until MAX_Q){
 				q_addrs(i)		:= io.start_addr + i.U * io.range
 				q_addr_start(i)	:= io.start_addr + i.U * io.range
 				q_addr_end(i)	:= io.start_addr + (i.U+&1.U) * io.range
-				q_values(i)		:= q_value_start(i)
-				count_word(i)	:= 0.U
+				// q_values(i)		:= q_value_start(i)
 			}
 			when(io.start===1.U){
 				state_cmd		:= sSEND_CMD
@@ -142,15 +143,15 @@ class H2CWithAXI() extends Module{
 		send_cmd_count	:= send_cmd_count + 1.U
 		q_addr_seq		:= q_addr_seq + io.length
 
-		for(i <- 0 until MAX_Q){
-			when(cur_q === i.U){
-				when(q_addrs(i) + io.length === q_addr_end(i)){
-					q_addrs(i)	:= q_addr_start(i)
-				}.otherwise{
-					q_addrs(i)	:= q_addrs(i) + io.length
-				}
-			}
-		}
+		// for(i <- 0 until MAX_Q){
+		// 	when(cur_q === i.U){
+		// 		when(q_addrs(i) + io.length === q_addr_end(i)){
+		// 			q_addrs(i)	:= q_addr_start(i)
+		// 		}.otherwise{
+		// 			q_addrs(i)	:= q_addrs(i) + io.length
+		// 		}
+		// 	}
+		// }
 
 		when(cur_q+1.U === io.total_qs){
 			cur_q	:= 0.U
@@ -158,88 +159,54 @@ class H2CWithAXI() extends Module{
 			cur_q	:= cur_q + 1.U
 		}
 	}
-	// HBM
-	val sNone :: sAW :: sW :: sH2CDone :: Nil = Enum(4)//must lower case for first letter!!!
-	val AXI_state			= RegInit(sNone)
-	val send_h2c_count = RegInit(UInt(32.W), 0.U)
-	val tot_h2c_count  = RegInit(UInt(32.W), 0.U)
-	val now_addr = RegInit(UInt(33.W), 0.U)
-	val h2c_aw_valid	= RegInit(Bool(),false.B)
-	val h2c_w_valid		= RegInit(Bool(),false.B)
-	val h2c_w_data 		= RegInit(UInt(256.W), 0.U)
-	val h2c_w_last 		= RegInit(Bool(), false.B)
-	io.h2c_w.bits.hbm_init()
-	io.h2c_aw.bits.hbm_init()
-	io.h2c_aw.valid := h2c_aw_valid
-	io.h2c_w.valid := h2c_w_valid
-	io.h2c_aw.bits.addr := now_addr
-	switch(AXI_state){
-		is(sNone){
-			tot_h2c_count := 0.U
-			now_addr := Cat(io.target_hbm, io.target_addr)
-			io.h2c_aw.bits.len  := io.length / 32.U
-			// 不能立刻就开始？
-			when(io.start===1.U){
-				AXI_state		:= sAW
-			}
-		}
-		is(sAW){
-			send_h2c_count := 0.U
-			h2c_aw_valid := true.B
-			when(tot_h2c_count === io.total_words) {
-				h2c_aw_valid := false.B
-				AXI_state		:= sH2CDone
-			}.elsewhen(io.h2c_aw.fire()) {
-				// now_addr := now_addr + 32.U
-				AXI_state		:= sW
-				h2c_aw_valid := false.B
-				h2c_data_ready := true.B
-			}
-		}
-		is(sW){
-			when(io.h2c_data.fire()) {
-				h2c_w_data := data_bits.data(255, 0)
-				h2c_w_last := data_bits.last
-				h2c_w_valid := true.B
-				h2c_data_ready := false.B
-			}
-			when(io.h2c_w.fire()) {
-				send_h2c_count := send_h2c_count + 1.U
-				// 这里我们一次传输一个字（256bits）
-				when(send_h2c_count + 1.U === io.length / 32.U) {		// 一个地址对应 32 个字节
-					h2c_w_valid := false.B
-					AXI_state		:= sAW
-					tot_h2c_count := tot_h2c_count + 1.U
-					now_addr := now_addr + 32.U
-				}
-			}
-		}
-		is(sH2CDone) {
-			when(rising_start){
-				AXI_state		:= sNone
-			}
-		}
-	}
-	io.h2c_w.bits.data := h2c_w_data		// 这样会直接把 h2c_w_bits_data 综合为 0
-	io.h2c_w.bits.last := h2c_w_last
-	io.h2c_b.ready := true.B
-	when(io.h2c_b.fire()){
-		count_err := count_err + 1.U
+
+	// 实例化
+	val h2c_1 = Module(new H2CAXIHelper(HIGH_OR_LOW=false))		// 处理低 32 位
+	val h2c_2 = Module(new H2CAXIHelper(HIGH_OR_LOW=true))		// 处理高 32 位
+	val fire_1 = Wire(Bool())
+	val fire_2 = Wire(Bool())
+
+	h2c_1.io.start <> io.start
+	h2c_1.io.total_words <> io.total_words
+	h2c_1.io.target_hbm <> io.target_hbm
+	h2c_1.io.target_addr <> io.target_addr
+	h2c_1.io.h2c_data_fire := fire_1
+	h2c_1.io.h2c_data_bits := io.h2c_data.bits
+	h2c_data_ready_1 := h2c_1.io.h2c_data_ready_out
+
+	h2c_2.io.start <> io.start
+	h2c_2.io.total_words <> io.total_words
+	h2c_2.io.target_hbm <> io.target_hbm
+	h2c_2.io.target_addr <> io.target_addr
+	h2c_2.io.h2c_data_fire := fire_2
+	h2c_2.io.h2c_data_bits := io.h2c_data.bits
+	h2c_data_ready_2 := h2c_2.io.h2c_data_ready_out
+	// 
+	io.h2c_aw_1 <> h2c_1.io.h2c_aw
+	io.h2c_w_1 <> h2c_1.io.h2c_w
+	io.h2c_b_1 <> h2c_1.io.h2c_b
+
+	io.h2c_aw_2 <> h2c_2.io.h2c_aw
+	io.h2c_w_2 <> h2c_2.io.h2c_w
+	io.h2c_b_2 <> h2c_2.io.h2c_b
+
+	cur_word_1 := h2c_1.io.h2c_b_out
+	cur_word_2 := h2c_2.io.h2c_b_out
+	// ÷ 2 是因为我们这里有两个 port，一个 port 只需要搬运一半的数据
+	// h2c_1.io.len := io.length / 2.U
+	// h2c_2.io.len := io.length / 2.U
+	h2c_1.io.len := 32.U
+	h2c_2.io.len := 32.U
+
+	when(io.h2c_data.fire()) {
+		fire_1 := true.B
+		fire_2 := true.B
+	}.otherwise{
+		fire_1 := false.B
+		fire_2 := false.B
 	}
 
-	// when(io.h2c_data.fire()){
-	// 	cur_word							:= cur_word + 1.U
-	// 	count_word(data_bits.tuser_qid)		:= count_word(data_bits.tuser_qid) + 1.U
-	// 	q_value_seq							:= q_value_seq + 1.U
-	// 	when((q_values(data_bits.tuser_qid)+1.U) === q_value_max(data_bits.tuser_qid) ){
-	// 		q_values(data_bits.tuser_qid)		:= q_value_start(data_bits.tuser_qid)
-	// 	}.otherwise{
-	// 		q_values(data_bits.tuser_qid)		:= q_values(data_bits.tuser_qid) + 1.U
-	// 	}
-	// }
-
-
-	io.count_err		:= count_err
-	io.count_word		:= send_cmd_count
+	io.count_err		:= cur_word_1.asUInt
+	io.count_word		:= cur_word_1.asUInt + cur_word_2.asUInt
 	io.count_time		:= count_time
 }

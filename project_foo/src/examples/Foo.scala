@@ -100,68 +100,116 @@ class Foo extends MultiIOModule{
 	c2h.io.c2h_data		<> qdma_c2h_data
 
 	// 还需要一个 FIFO
-	val in_axi = Wire(new AXI(33, 256, 6, 0, 4))
-	ToZero(in_axi)
-	val in_axi_regslice = withClockAndReset(userClk, !qdma.io.user_arstn) { AXIRegSlice(in_axi) }
-	in_axi.aw <> h2c.io.h2c_aw
-	in_axi.w <> h2c.io.h2c_w
-	in_axi.ar <> c2h.io.c2h_ar
-	c2h.io.c2h_r <> in_axi.r
-	h2c.io.h2c_b <> in_axi.b
+	// target_hbm
+	// val channel_1 = 0
+	// val channel_2 = 1
+	// val base = reg_control(113) * 16.U
+	// val channel = reg_control(114)(31,28)
+	// val offset = if(channel % 4.U == 3.U(4.W)) { channel - 1.U } else { channel }
 
-	val out_axi = XAXIConverter(in_axi_regslice, userClk, qdma.io.user_arstn, hbm_clk, hbm_rstn)
-	val out_axi_regslice = withClockAndReset(hbm_clk, !hbm_rstn) { AXIRegSlice(out_axi) }
+	val in_axi_1 = Wire(new AXI(33, 256, 6, 0, 4))
+	ToZero(in_axi_1)
+	val in_axi_regslice_1 = withClockAndReset(userClk, !qdma.io.user_arstn) { AXIRegSlice(in_axi_1) }
+	in_axi_1.aw <> h2c.io.h2c_aw_1
+	in_axi_1.w <> h2c.io.h2c_w_1
+	in_axi_1.ar <> c2h.io.c2h_ar_1
+	c2h.io.c2h_r_1 <> in_axi_1.r
+	h2c.io.h2c_b_1 <> in_axi_1.b
 
-	val hbm_h2c_cmd = out_axi_regslice.aw
+	val out_axi_1 = XAXIConverter(in_axi_regslice_1, userClk, qdma.io.user_arstn, hbm_clk, hbm_rstn)
+	val out_axi_regslice_1 = withClockAndReset(hbm_clk, !hbm_rstn) { AXIRegSlice(out_axi_1) }
+	val hbm_h2c_cmd_1 = out_axi_regslice_1.aw
+	val hbm_h2c_data_1 = out_axi_regslice_1.w
+	val hbm_c2h_cmd_1 = out_axi_regslice_1.ar
+	val hbm_c2h_data_1 = Wire(Decoupled(new AXI_DATA_R(33, 256, 6, 0)))
+	ToZero(hbm_c2h_data_1)
+	val hbm_h2c_back_1 = Wire(Decoupled(new AXI_BACK(33, 256, 6, 0)))
+	out_axi_regslice_1.r.bits := hbm_c2h_data_1.bits
+	out_axi_regslice_1.r.valid := hbm_c2h_data_1.valid
+	hbm_c2h_data_1.ready := out_axi_regslice_1.r.ready
 
-	val hbm_h2c_data = out_axi_regslice.w
-
-	val hbm_c2h_cmd = out_axi_regslice.ar
-
-	val hbm_c2h_data = Wire(Decoupled(new AXI_DATA_R(33, 256, 6, 0)))
-	ToZero(hbm_c2h_data)
-	val hbm_h2c_back = Wire(Decoupled(new AXI_BACK(33, 256, 6, 0)))
-
-	// out_axi_regslice.r <> hbm_c2h_data
-	out_axi_regslice.r.bits := hbm_c2h_data.bits
-	out_axi_regslice.r.valid := hbm_c2h_data.valid
-	hbm_c2h_data.ready := out_axi_regslice.r.ready
-
-	out_axi_regslice.b.bits := hbm_h2c_back.bits
-	out_axi_regslice.b.valid := hbm_h2c_back.valid
-	hbm_h2c_back.ready := out_axi_regslice.b.ready
+	out_axi_regslice_1.b.bits := hbm_h2c_back_1.bits
+	out_axi_regslice_1.b.valid := hbm_h2c_back_1.valid
+	hbm_h2c_back_1.ready := out_axi_regslice_1.b.ready
 	
-	// H2C 往 hbm 里写数据（应该是 aw 和 w
-	val axi_port_0 = hbm_driver.io.axi_hbm(0)
-	hbm_h2c_cmd.ready := axi_port_0.aw.ready
-	axi_port_0.aw.valid := hbm_h2c_cmd.valid
-	axi_port_0.aw.bits.addr := hbm_h2c_cmd.bits.addr
-	axi_port_0.aw.bits.len := hbm_h2c_cmd.bits.len
-	// hbm_h2c_cmd.bits <> axi_port_0.aw.bits		// addr len=
+	// val axi_port_1 = hbm_driver.io.axi_hbm(base + offset)
+	val axi_port_1 = hbm_driver.io.axi_hbm(0.U)
+	hbm_h2c_cmd_1.ready := axi_port_1.aw.ready
+	axi_port_1.aw.valid := hbm_h2c_cmd_1.valid
+	axi_port_1.aw.bits.addr := hbm_h2c_cmd_1.bits.addr
+	axi_port_1.aw.bits.len := hbm_h2c_cmd_1.bits.len
 	// size?
-	hbm_h2c_data.ready := axi_port_0.w.ready
-	axi_port_0.w.valid := hbm_h2c_data.valid
-	axi_port_0.w.bits.data := hbm_h2c_data.bits.data
-	axi_port_0.w.bits.last := hbm_h2c_data.bits.last
-	// hbm_h2c_data.bits <> axi_port_0.w.bits		// data last
+	hbm_h2c_data_1.ready := axi_port_1.w.ready
+	axi_port_1.w.valid := hbm_h2c_data_1.valid
+	axi_port_1.w.bits.data := hbm_h2c_data_1.bits.data
+	axi_port_1.w.bits.last := hbm_h2c_data_1.bits.last
 	//back
-	axi_port_0.b.ready := hbm_h2c_back.ready
-	hbm_h2c_back.valid := axi_port_0.b.valid
-	hbm_h2c_back.bits <> axi_port_0.b.bits
+	axi_port_1.b.ready := hbm_h2c_back_1.ready
+	hbm_h2c_back_1.valid := axi_port_1.b.valid
+	hbm_h2c_back_1.bits <> axi_port_1.b.bits
 
 	// C2H 从 hbm 里读数据（应该是 ar
-	hbm_c2h_cmd.ready := axi_port_0.ar.ready
-	axi_port_0.ar.valid := hbm_c2h_cmd.valid
-	axi_port_0.ar.bits.addr := hbm_c2h_cmd.bits.addr
-	axi_port_0.ar.bits.len := hbm_c2h_cmd.bits.len
-	// hbm_c2h_cmd.bits <> axi_port_0.ar.bits		// addr len
+	hbm_c2h_cmd_1.ready := axi_port_1.ar.ready
+	axi_port_1.ar.valid := hbm_c2h_cmd_1.valid
+	axi_port_1.ar.bits.addr := hbm_c2h_cmd_1.bits.addr
+	axi_port_1.ar.bits.len := hbm_c2h_cmd_1.bits.len
 
+	axi_port_1.r.ready := hbm_c2h_data_1.ready
+	hbm_c2h_data_1.valid := axi_port_1.r.valid
+	hbm_c2h_data_1.bits.data := axi_port_1.r.bits.data
+	hbm_c2h_data_1.bits.last := axi_port_1.r.bits.last
+	/*********************************************************************/
+	val in_axi_2 = Wire(new AXI(33, 256, 6, 0, 4))
+	ToZero(in_axi_2)
+	val in_axi_regslice_2 = withClockAndReset(userClk, !qdma.io.user_arstn) { AXIRegSlice(in_axi_2) }
+	in_axi_2.aw <> h2c.io.h2c_aw_2
+	in_axi_2.w <> h2c.io.h2c_w_2
+	in_axi_2.ar <> c2h.io.c2h_ar_2
+	c2h.io.c2h_r_2 <> in_axi_2.r
+	h2c.io.h2c_b_2 <> in_axi_2.b
 
-	axi_port_0.r.ready := hbm_c2h_data.ready
-	hbm_c2h_data.valid := axi_port_0.r.valid
-	hbm_c2h_data.bits.data := axi_port_0.r.bits.data
-	hbm_c2h_data.bits.last := axi_port_0.r.bits.last
-	// hbm_c2h_data.bits <> axi_port_0.r.bits		// data last
+	val out_axi_2 = XAXIConverter(in_axi_regslice_2, userClk, qdma.io.user_arstn, hbm_clk, hbm_rstn)
+	val out_axi_regslice_2 = withClockAndReset(hbm_clk, !hbm_rstn) { AXIRegSlice(out_axi_2) }
+	val hbm_h2c_cmd_2 = out_axi_regslice_2.aw
+	val hbm_h2c_data_2 = out_axi_regslice_2.w
+	val hbm_c2h_cmd_2 = out_axi_regslice_2.ar
+	val hbm_c2h_data_2 = Wire(Decoupled(new AXI_DATA_R(33, 256, 6, 0)))
+	ToZero(hbm_c2h_data_2)
+	val hbm_h2c_back_2 = Wire(Decoupled(new AXI_BACK(33, 256, 6, 0)))
+	out_axi_regslice_2.r.bits := hbm_c2h_data_2.bits
+	out_axi_regslice_2.r.valid := hbm_c2h_data_2.valid
+	hbm_c2h_data_2.ready := out_axi_regslice_2.r.ready
+
+	out_axi_regslice_2.b.bits := hbm_h2c_back_2.bits
+	out_axi_regslice_2.b.valid := hbm_h2c_back_2.valid
+	hbm_h2c_back_2.ready := out_axi_regslice_2.b.ready
+	
+	// val axi_port_2 = hbm_driver.io.axi_hbm(base + offset + 1.U)
+	val axi_port_2 = hbm_driver.io.axi_hbm(1.U)
+	hbm_h2c_cmd_2.ready := axi_port_2.aw.ready
+	axi_port_2.aw.valid := hbm_h2c_cmd_2.valid
+	axi_port_2.aw.bits.addr := hbm_h2c_cmd_2.bits.addr
+	axi_port_2.aw.bits.len := hbm_h2c_cmd_2.bits.len
+	// size?
+	hbm_h2c_data_2.ready := axi_port_2.w.ready
+	axi_port_2.w.valid := hbm_h2c_data_2.valid
+	axi_port_2.w.bits.data := hbm_h2c_data_2.bits.data
+	axi_port_2.w.bits.last := hbm_h2c_data_2.bits.last
+	//back
+	axi_port_2.b.ready := hbm_h2c_back_2.ready
+	hbm_h2c_back_2.valid := axi_port_2.b.valid
+	hbm_h2c_back_2.bits <> axi_port_2.b.bits
+
+	// C2H 从 hbm 里读数据（应该是 ar
+	hbm_c2h_cmd_2.ready := axi_port_2.ar.ready
+	axi_port_2.ar.valid := hbm_c2h_cmd_2.valid
+	axi_port_2.ar.bits.addr := hbm_c2h_cmd_2.bits.addr
+	axi_port_2.ar.bits.len := hbm_c2h_cmd_2.bits.len
+
+	axi_port_2.r.ready := hbm_c2h_data_2.ready
+	hbm_c2h_data_2.valid := axi_port_2.r.valid
+	hbm_c2h_data_2.bits.data := axi_port_2.r.bits.data
+	hbm_c2h_data_2.bits.last := axi_port_2.r.bits.last
 
 	h2c.io.start_addr	:= Cat(reg_control(100), reg_control(101))
 	h2c.io.length		:= reg_control(102)
@@ -230,69 +278,85 @@ class Foo extends MultiIOModule{
 	h2c.io.h2c_cmd.ready,
 	c2h.io.c2h_cmd.valid,
 	c2h.io.c2h_cmd.ready,
-	h2c.io.h2c_aw.valid,
-	h2c.io.h2c_w.valid,
-	h2c.io.h2c_b.valid,
-	h2c.io.h2c_aw.ready,
-	h2c.io.h2c_w.ready,
-	h2c.io.h2c_b.ready,
-	c2h.io.c2h_ar.valid,
-	c2h.io.c2h_r.valid,
-	c2h.io.c2h_ar.ready,
-	c2h.io.c2h_r.ready,
+	h2c.io.h2c_aw_1.valid,
+	h2c.io.h2c_w_1.valid,
+	h2c.io.h2c_b_1.valid,
+	h2c.io.h2c_aw_1.ready,
+	h2c.io.h2c_w_1.ready,
+	h2c.io.h2c_b_1.ready,
+	c2h.io.c2h_ar_1.valid,
+	c2h.io.c2h_r_1.valid,
+	c2h.io.c2h_ar_1.ready,
+	c2h.io.c2h_r_1.ready,
 
-	h2c.io.h2c_aw.bits.addr,
-	c2h.io.c2h_ar.bits.addr,
-	h2c.io.h2c_w.bits.data,
-	c2h.io.c2h_r.bits.data,
+	h2c.io.h2c_aw_1.bits.addr,
+	c2h.io.c2h_ar_1.bits.addr,
+	h2c.io.h2c_w_1.bits.data,
+	c2h.io.c2h_r_1.bits.data,
 
-	axi_port_0.ar.bits.addr,
-	axi_port_0.r.bits.data,
-	axi_port_0.aw.bits.addr,
-	axi_port_0.w.bits.data,
-	axi_port_0.b.bits.resp,
-	axi_port_0.b.bits.id,
+	h2c.io.h2c_aw_2.valid,
+	h2c.io.h2c_w_2.valid,
+	h2c.io.h2c_b_2.valid,
+	h2c.io.h2c_aw_2.ready,
+	h2c.io.h2c_w_2.ready,
+	h2c.io.h2c_b_2.ready,
+	c2h.io.c2h_ar_2.valid,
+	c2h.io.c2h_r_2.valid,
+	c2h.io.c2h_ar_2.ready,
+	c2h.io.c2h_r_2.ready,
 
-	axi_port_0.ar.valid,
-	axi_port_0.r.valid,
-	axi_port_0.aw.valid,
-	axi_port_0.w.valid,
-	axi_port_0.b.valid,
+	h2c.io.h2c_aw_2.bits.addr,
+	c2h.io.c2h_ar_2.bits.addr,
+	h2c.io.h2c_w_2.bits.data,
+	c2h.io.c2h_r_2.bits.data,
+	
+	hbm_h2c_data_1.valid,
+	hbm_h2c_data_1.bits.data,
+	hbm_h2c_cmd_1.valid,
+	hbm_h2c_cmd_1.bits.addr,
+	hbm_h2c_back_1.valid,
+	hbm_c2h_data_1.valid,
+	hbm_c2h_data_1.bits.data,
+	hbm_c2h_cmd_1.valid,
+	hbm_c2h_cmd_1.bits.addr,
 
-	axi_port_0.ar.ready,
-	axi_port_0.r.ready,
-	axi_port_0.aw.ready,
-	axi_port_0.w.ready,
-	axi_port_0.b.ready,
+	hbm_h2c_data_2.valid,
+	hbm_h2c_data_2.bits.data,
+	hbm_h2c_cmd_2.valid,
+	hbm_h2c_cmd_2.bits.addr,
+	hbm_h2c_back_2.valid,
+	hbm_c2h_data_2.valid,
+	hbm_c2h_data_2.bits.data,
+	hbm_c2h_cmd_2.valid,
+	hbm_c2h_cmd_2.bits.addr,
 
-	hbm_h2c_cmd.bits.addr,
-	hbm_c2h_cmd.bits.addr,
-	hbm_h2c_data.bits.data,
-	hbm_c2h_data.bits.data,
+	// axi_port_1.ar.bits.addr,
+	// axi_port_1.r.bits.data,
+	// axi_port_1.aw.bits.addr,
+	// axi_port_1.w.bits.data,
+	// axi_port_1.b.bits.resp,
+	// axi_port_1.b.bits.id,
 
-	in_axi.ar.bits.addr,
-	in_axi.r.bits.data,
-	in_axi.aw.bits.addr,
-	in_axi.w.bits.data,
-	in_axi.b.bits.resp,
+	// axi_port_1.ar.valid,
+	// // axi_port_1.r.valid,
+	// axi_port_1.aw.valid,
+	// axi_port_1.w.valid,
+	// axi_port_1.b.valid,
 
-	in_axi_regslice.ar.bits.addr,
-	in_axi_regslice.r.bits.data,
-	in_axi_regslice.aw.bits.addr,
-	in_axi_regslice.w.bits.data,
-	in_axi_regslice.b.bits.resp,
+	// axi_port_2.ar.bits.addr,
+	// axi_port_2.r.bits.data,
+	// axi_port_2.aw.bits.addr,
+	// axi_port_2.w.bits.data,
+	// axi_port_2.b.bits.resp,
+	// axi_port_2.b.bits.id,
 
-	out_axi.ar.bits.addr,
-	out_axi.r.bits.data,
-	out_axi.aw.bits.addr,
-	out_axi.w.bits.data,
-	out_axi.b.bits.resp,
+	// axi_port_2.ar.valid,
+	// // axi_port_2.r.valid,
+	// axi_port_2.aw.valid,
+	// axi_port_2.w.valid,
+	// axi_port_2.b.valid,
 
-	// out_axi_regslice.ar.bits.addr,
-	// out_axi_regslice.r.bits.data,
-	// out_axi_regslice.aw.bits.addr,
-	// out_axi_regslice.w.bits.data,
-	// out_axi_regslice.b.bits.resp
+
 	)))
 	inst.connect(clock)
 }
