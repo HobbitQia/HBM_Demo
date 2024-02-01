@@ -40,6 +40,7 @@ object elaborate extends App {
 		case "H2CWithAXI" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new H2CWithAXI()),dir))
 		case "C2HWithAXI" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new C2HWithAXI()),dir))
 		case "TestAXIRegSlice" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new TestAXIRegSlice()),dir))
+		case "AXIToHBM" => stage.execute(arr,Seq(ChiselGeneratorAnnotation(() => new AXIToHBM()),dir))
 		case _ => println("Module match failed!")
 	}
 }

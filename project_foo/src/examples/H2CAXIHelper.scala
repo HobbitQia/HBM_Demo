@@ -43,6 +43,9 @@ class H2CAXIHelper(HIGH_OR_LOW: Boolean) extends Module{
 	io.h2c_aw.valid := h2c_aw_valid
 	io.h2c_w.valid := h2c_w_valid
 	io.h2c_aw.bits.addr := now_addr
+
+
+
 	switch(AXI_state){
 		is(sNone){
 			cur_word := 0.U
