@@ -82,7 +82,7 @@ class H2CWithAXI() extends Module{
 	val cmd_nearly_done = io.h2c_cmd.fire() && (send_cmd_count + 1.U === io.total_cmds)
 
 	when(io.start === 1.U){
-		when(io.cur_word =/= io.total_cmds){
+		when(io.cur_word =/= io.length >> 5.U){
 			count_time	:= count_time + 1.U
 		}.otherwise{
 			count_time	:= count_time

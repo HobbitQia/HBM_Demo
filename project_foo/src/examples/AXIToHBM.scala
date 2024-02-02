@@ -25,7 +25,7 @@ class AXIToHBM() extends RawModule {
         val hbmCtrlAw   = Flipped(Decoupled(new AddrMsg))
         val hbmCtrlW    = Flipped(Decoupled(new H2C_DATA))
         val wordCountW       = Output(UInt(32.W))
-        val wordCountR       = Output(UInt(32.W))
+        // val wordCountR       = Output(UInt(32.W))
 
         val hbmCtrlAr   = Flipped(Decoupled(new AddrMsg))
         val hbmCtrlR    = Decoupled(new C2H_DATA)
@@ -250,10 +250,10 @@ class AXIToHBM() extends RawModule {
             }
         }
 
-        val ctrlCountR = RegInit(UInt(32.W), 0.U)
-        when (hbmCtrlR.fire()) {
-            ctrlCountR := ctrlCountR + 1.U
-        }
-        io.wordCountR := ctrlCountR
+        // val ctrlCountR = RegInit(UInt(32.W), 0.U)
+        // when (hbmCtrlR.fire()) {
+        //     ctrlCountR := ctrlCountR + 1.U
+        // }
+        // io.wordCountR := ctrlCountR
     }   
 }

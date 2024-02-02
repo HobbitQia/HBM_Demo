@@ -110,9 +110,18 @@ class Foo extends MultiIOModule{
 	axi2hbm.io.hbmCtrlW	 <> qdma_h2c_data
 	axi2hbm.io.hbmCtrlAr <> c2h.io.hbmCtrlAr
 	axi2hbm.io.hbmCtrlR	 <> qdma_c2h_data
-	h2c.io.cur_word		 := axi2hbm.io.wordCountW		// 传了多少个字（单位是 512 Bytes
-	c2h.io.cur_word      := axi2hbm.io.wordCountR
-
+	// h2c.io.cur_word		 := axi2hbm.io.wordCountW		// 传了多少个字（单位是 512 Bytes
+	// c2h.io.cur_word      := axi2hbm.io.wordCountR
+	val count_send_word_h2c	= RegInit(UInt(32.W),0.U)
+	val count_send_word_c2h	= RegInit(UInt(32.W),0.U)
+	when(qdma_h2c_data.fire()){
+		count_send_word_h2c			:= count_send_word_h2c + 1.U
+	}
+	when(qdma_c2h_data.fire()){
+		count_send_word_c2h			:= count_send_word_c2h + 1.U
+	}
+	h2c.io.cur_word 	 := count_send_word_h2c
+	c2h.io.cur_word 	 := count_send_word_c2h
 	
 
 	h2c.io.start_addr	:= Cat(reg_control(100), reg_control(101))
@@ -161,10 +170,10 @@ class Foo extends MultiIOModule{
 	qdma.io.user_arstn,
 	// h2c.reset,
 
-	h2c.io.count_err,
-	axi2hbm.io.wordCountW,
-	c2h.io.count_cmd,
-	axi2hbm.io.wordCountR,
+	// h2c.io.count_err,
+	// axi2hbm.io.wordCountW,
+	// c2h.io.count_cmd,
+	// axi2hbm.io.wordCountR,
 
 	// qdma_h2c_cmd.bits.addr,
 	// qdma_h2c_cmd.bits.len,

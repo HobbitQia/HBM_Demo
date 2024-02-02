@@ -36,11 +36,9 @@ class C2HWithAXI() extends Module{
 	val q_addr_seq			= RegInit(UInt(64.W),0.U)
 	val tags				= RegInit(VecInit(Seq.fill(MAX_Q)(0.U(7.W))))
 	
-	val burst_words			= 1.U
 	val cur_q				= RegInit(UInt(log2Up(MAX_Q).W),0.U)
 	val cur_data_q			= RegInit(UInt(log2Up(MAX_Q).W),0.U)
 	val valid_cmd			= RegInit(UInt(32.W),0.U)
-	val count_burst_word	= RegInit(UInt(32.W),0.U)
 	val count_send_cmd		= RegInit(UInt(32.W),0.U)
 	val count_time			= RegInit(UInt(32.W),0.U)
 	val rising_start		= io.start===1.U & !RegNext(io.start===1.U)
@@ -61,7 +59,7 @@ class C2HWithAXI() extends Module{
 	}
 
 	when(io.start === 1.U){
-		when(io.cur_word =/= io.total_cmds){
+		when(io.cur_word =/= io.total_words){
 			count_time	:= count_time + 1.U
 		}.otherwise{
 			count_time	:= count_time
@@ -80,7 +78,6 @@ class C2HWithAXI() extends Module{
 			count_send_cmd			:= 0.U
 			cur_q					:= 0.U
 			cur_data_q				:= 0.U
-			count_burst_word		:= 0.U
 			q_addr_seq				:= io.start_addr
 			when(io.start===1.U){
 				state_cmd			:= sSEND
