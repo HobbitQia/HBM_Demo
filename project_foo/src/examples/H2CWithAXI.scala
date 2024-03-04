@@ -82,7 +82,7 @@ class H2CWithAXI() extends Module{
 	val cmd_nearly_done = io.h2c_cmd.fire() && (send_cmd_count + 1.U === io.total_cmds)
 
 	when(io.start === 1.U){
-		when(io.cur_word =/= io.length >> 5.U){
+		when(io.cur_word =/= io.total_words){
 			count_time	:= count_time + 1.U
 		}.otherwise{
 			count_time	:= count_time
@@ -144,7 +144,6 @@ class H2CWithAXI() extends Module{
 	switch(state_hbm) {
 		is(sIDLE) {
 			when (io.start === 1.U) {
-				ctrl_valid	:= true.B
 				target_addr	:= io.target_addr
 				length	:= io.length
 				state_hbm := sSEND_CMD
@@ -156,11 +155,14 @@ class H2CWithAXI() extends Module{
 			}
 		}
 		is(sSEND_CMD) {
+			ctrl_valid	:= true.B
 			when(io.hbmCtrlAw.fire()) {
-				ctrl_valid	:= false.B
+				target_addr := target_addr + io.length
+				// ctrl_valid	:= false.B
 			}
-			when(io.cur_word === io.total_cmds) {
+			when(cmd_nearly_done) {
 				state_hbm := sDONE
+				ctrl_valid	:= false.B
 			}
 		}
 		is(sDONE) {

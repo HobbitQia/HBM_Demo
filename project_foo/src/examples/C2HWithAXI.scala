@@ -118,7 +118,6 @@ class C2HWithAXI() extends Module{
 	switch(state_hbm) {
 		is(sIDLE) {
 			when (io.start === 1.U) {
-				ctrl_valid	:= true.B
 				target_addr	:= io.target_addr
 				length	:= io.length
 				state_hbm := sSEND
@@ -130,11 +129,13 @@ class C2HWithAXI() extends Module{
 			}
 		}
 		is(sSEND) {
+			ctrl_valid	:= true.B
 			when(io.hbmCtrlAr.fire()) {
-				ctrl_valid	:= false.B
+				target_addr := target_addr + io.length
 			}
-			when(io.cur_word === io.total_cmds) {
+			when(cmd_nearly_done) {
 				state_hbm := sDONE
+				ctrl_valid	:= false.B
 			}
 		}
 		is(sDONE) {
