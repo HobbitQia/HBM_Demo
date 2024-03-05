@@ -69,7 +69,7 @@ class H2CAXIHelper(HIGH_OR_LOW: Boolean) extends Module{
 			when(tot_h2c_count === io.total_words) {
 				h2c_aw_valid := false.B
 				AXI_state		:= sH2CDone
-			}.elsewhen(io.h2c_aw.fire()) {
+			}.elsewhen(io.h2c_aw.fire) {
 				// now_addr := now_addr + 32.U
 				AXI_state		:= sW
 				h2c_aw_valid := false.B
@@ -88,7 +88,7 @@ class H2CAXIHelper(HIGH_OR_LOW: Boolean) extends Module{
 				h2c_w_valid := true.B
 				h2c_data_ready := false.B
 			}
-			when(io.h2c_w.fire()) {
+			when(io.h2c_w.fire) {
 				send_h2c_count := send_h2c_count + 1.U
 				// 这里我们一次传输一个字（256bits）
 				when(send_h2c_count + 1.U === io.len / 32.U) {		// 一个地址对应 32 个字节
@@ -108,7 +108,7 @@ class H2CAXIHelper(HIGH_OR_LOW: Boolean) extends Module{
 	io.h2c_w.bits.data := h2c_w_data		// 要放在上面逻辑的后面，否则会直接把 h2c_w_bits_data 综合为 0
 	io.h2c_w.bits.last := h2c_w_last
 	io.h2c_b.ready := true.B
-	when(io.h2c_b.fire()){
+	when(io.h2c_b.fire){
 		cur_word := cur_word + 1.U
 	}
     io.h2c_data_ready_out := h2c_data_ready

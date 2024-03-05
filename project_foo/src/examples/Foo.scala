@@ -114,10 +114,10 @@ class Foo extends MultiIOModule{
 	// c2h.io.cur_word      := axi2hbm.io.wordCountR
 	val count_send_word_h2c	= RegInit(UInt(32.W),0.U)
 	val count_send_word_c2h	= RegInit(UInt(32.W),0.U)
-	when(qdma_h2c_data.fire()){
+	when(qdma_h2c_data.fire){
 		count_send_word_h2c			:= count_send_word_h2c + 1.U
 	}
-	when(qdma_c2h_data.fire()){
+	when(qdma_c2h_data.fire){
 		count_send_word_c2h			:= count_send_word_c2h + 1.U
 	}
 	h2c.io.cur_word 	 := count_send_word_h2c

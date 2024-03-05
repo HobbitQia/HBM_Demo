@@ -69,7 +69,7 @@ class C2HWithAXI() extends Module{
 	}
 
 	//state machine
-	val cmd_nearly_done = io.c2h_cmd.fire() && (count_send_cmd + 1.U === io.total_cmds)
+	val cmd_nearly_done = io.c2h_cmd.fire && (count_send_cmd + 1.U === io.total_cmds)
 
 	val sIDLE :: sSEND :: sDONE :: Nil = Enum(3)
 	val state_cmd			= RegInit(sIDLE)
@@ -97,7 +97,7 @@ class C2HWithAXI() extends Module{
 		}
 	}
 
-	when(io.c2h_cmd.fire()){
+	when(io.c2h_cmd.fire){
 		count_send_cmd		:= count_send_cmd + 1.U
 		q_addr_seq			:= q_addr_seq + io.length
 		
@@ -130,7 +130,7 @@ class C2HWithAXI() extends Module{
 		}
 		is(sSEND) {
 			ctrl_valid	:= true.B
-			when(io.hbmCtrlAr.fire()) {
+			when(io.hbmCtrlAr.fire) {
 				target_addr := target_addr + io.length
 			}
 			when(cmd_nearly_done) {

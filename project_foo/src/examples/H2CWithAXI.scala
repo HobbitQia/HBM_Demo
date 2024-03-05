@@ -79,7 +79,7 @@ class H2CWithAXI() extends Module{
 	val sIDLE :: sSEND_CMD :: sDONE :: Nil = Enum(3)//must lower case for first letter!!!
 	val state_cmd			= RegInit(sIDLE)
 
-	val cmd_nearly_done = io.h2c_cmd.fire() && (send_cmd_count + 1.U === io.total_cmds)
+	val cmd_nearly_done = io.h2c_cmd.fire && (send_cmd_count + 1.U === io.total_cmds)
 
 	when(io.start === 1.U){
 		when(io.cur_word =/= io.total_words){
@@ -123,7 +123,7 @@ class H2CWithAXI() extends Module{
 		}
 	}
 
-	when(io.h2c_cmd.fire()){
+	when(io.h2c_cmd.fire){
 		send_cmd_count	:= send_cmd_count + 1.U
 		q_addr_seq		:= q_addr_seq + io.length
 
@@ -156,7 +156,7 @@ class H2CWithAXI() extends Module{
 		}
 		is(sSEND_CMD) {
 			ctrl_valid	:= true.B
-			when(io.hbmCtrlAw.fire()) {
+			when(io.hbmCtrlAw.fire) {
 				target_addr := target_addr + io.length
 				// ctrl_valid	:= false.B
 			}

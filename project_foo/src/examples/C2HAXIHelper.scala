@@ -63,14 +63,14 @@ class C2HAXIHelper(HIGH_OR_LOW: Boolean) extends Module {
 			when(tot_c2h_count === io.total_words) {
 				c2h_ar_valid := false.B
 				AXI_state		:= sC2HDone
-			}.elsewhen(io.c2h_ar.fire()) {
+			}.elsewhen(io.c2h_ar.fire) {
 				AXI_state		:= sR
 				c2h_ar_valid := false.B
 				c2h_r_ready := true.B
 			}
 		}
 		is(sR){
-			when(io.c2h_r.fire()) {
+			when(io.c2h_r.fire) {
 				c2h_r_data := io.c2h_r.bits.data
 				c2h_r_last := io.c2h_r.bits.last
 				valid_data := true.B

@@ -83,13 +83,13 @@ class AXIToHBM() extends RawModule {
         }
         io.hbmAxi.w.bits.strb := "hffffffff".U
         io.hbmAxi.w.bits.data := Mux(ctrlWLen(5), wData_2, ctrlFifoW.io.out.bits.data(255, 0))
-        io.hbmAxi.w.bits.last := ((wLen === 15.U)||(ctrlWLen <= 32.U)) && io.hbmAxi.w.fire()
+        io.hbmAxi.w.bits.last := ((wLen === 15.U)||(ctrlWLen <= 32.U)) && io.hbmAxi.w.fire
         io.hbmAxi.w.valid     := ((StateW === sWrite) && ctrlFifoW.io.out.valid) || (StateW === sWriteSecond)
     
         // AW
         switch(StateAw) {
             is(sIdle) {
-                when (ctrlFifoAw.io.out.fire()) {
+                when (ctrlFifoAw.io.out.fire) {
                     ctrlAwAddr := ctrlFifoAw.io.out.bits.addr
                     ctrlAwLen  := ctrlFifoAw.io.out.bits.length
                     ctrlFifoAw_r.io.in.valid    := 1.U  // 最后怎么为 0 ？
@@ -98,7 +98,7 @@ class AXIToHBM() extends RawModule {
                 }
             }
             is(sWrite) {
-                when (io.hbmAxi.aw.fire()) {
+                when (io.hbmAxi.aw.fire) {
                     when (ctrlAwLen > 512.U) {
                         ctrlAwAddr := ctrlAwAddr + 512.U
                         ctrlAwLen  := ctrlAwLen - 512.U
@@ -113,14 +113,14 @@ class AXIToHBM() extends RawModule {
         switch(StateW) {
             is(sIdle) {
                 // AW 的地址和长度已经到了 AW_r 的 FIFO 末尾
-                when (ctrlFifoAw_r.io.out.fire()) {
+                when (ctrlFifoAw_r.io.out.fire) {
                     ctrlWLen := ctrlFifoAw_r.io.out.bits.length
                     wLen     := 0.U
                     StateW   := sWrite
                 }
             }
             is(sWrite) {
-                when (io.hbmAxi.w.fire()) {
+                when (io.hbmAxi.w.fire) {
                     wLen := wLen + 1.U
                     ctrlWLen := ctrlWLen - 32.U
                     wData_2 := ctrlFifoW.io.out.bits.data(511, 256)
@@ -128,7 +128,7 @@ class AXIToHBM() extends RawModule {
                 }
             }
             is(sWriteSecond) {
-                when (io.hbmAxi.w.fire()) {
+                when (io.hbmAxi.w.fire) {
                     wLen := wLen + 1.U
                     when(wLen === 15.U){
                         wLen := 0.U
@@ -145,7 +145,7 @@ class AXIToHBM() extends RawModule {
         // 写低 32 bytes 还是高 32 bytes
         io.hbmAxi.b.ready       := 1.U
         // val ctrlCountW = RegInit(UInt(32.W), 0.U)
-        // when (io.hbmAxi.b.fire()) {
+        // when (io.hbmAxi.b.fire) {
         //     ctrlCountW := ctrlCountW + 1.U
         // }
         // io.wordCountW := ctrlCountW
@@ -203,7 +203,7 @@ class AXIToHBM() extends RawModule {
         // AR
         switch(StateAr) {
             is(sIdle) {
-                when (ctrlFifoAr.io.out.fire()) {
+                when (ctrlFifoAr.io.out.fire) {
                     ctrlArAddr := ctrlFifoAr.io.out.bits.addr
                     ctrlArLen  := ctrlFifoAr.io.out.bits.length
                     ctrlFifoAr_r.io.in.valid    := 1.U
@@ -212,7 +212,7 @@ class AXIToHBM() extends RawModule {
                 }
             }
             is(sWrite) {
-                when (io.hbmAxi.ar.fire()) {
+                when (io.hbmAxi.ar.fire) {
                     when (ctrlArLen > 512.U) {
                         ctrlArAddr := ctrlArAddr + 512.U
                         ctrlArLen  := ctrlArLen - 512.U
@@ -226,20 +226,20 @@ class AXIToHBM() extends RawModule {
         // R
         switch(StateR) {
             is(sIdle) {
-                when (ctrlFifoAr_r.io.out.fire()) {
+                when (ctrlFifoAr_r.io.out.fire) {
                     ctrlRLen := ctrlFifoAr_r.io.out.bits.length
                     StateR   := sWrite
                 }
             }
             is(sWrite) {
-                when (io.hbmAxi.r.fire()) {
+                when (io.hbmAxi.r.fire) {
                     ctrlRLen := ctrlRLen - 32.U
                     rData_1 := io.hbmAxi.r.bits.data
                     StateR := sWriteSecond
                 }
             }
             is(sWriteSecond) {
-                when (io.hbmAxi.r.fire()) {
+                when (io.hbmAxi.r.fire) {
                     when(ctrlRLen > 32.U){
                         ctrlRLen := ctrlRLen - 32.U
                         StateR := sWrite
@@ -251,7 +251,7 @@ class AXIToHBM() extends RawModule {
         }
 
         // val ctrlCountR = RegInit(UInt(32.W), 0.U)
-        // when (hbmCtrlR.fire()) {
+        // when (hbmCtrlR.fire) {
         //     ctrlCountR := ctrlCountR + 1.U
         // }
         // io.wordCountR := ctrlCountR
